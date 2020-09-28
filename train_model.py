@@ -55,7 +55,7 @@ class TrainLSTM(object):
 		model.save_weights('weights/lstm_model.h5')
 
 	def data_process(self,df):
-		transformed_df = preProcessData().preprocess_df(df)
+		transformed_df = preProcessData.preprocess_df(df)
 		values		   = transformed_df.values
 		n_train_hours  = 365*24*self.n_train_years
 		n_valid_hours  = 365*24*self.n_val_years
