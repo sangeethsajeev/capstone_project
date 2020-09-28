@@ -1,4 +1,8 @@
-# capstone_project
+# Capstone Project
+
+Read Me is a work in progress.
+
+
 
 Use this command to run the requirements.txt file:
 
