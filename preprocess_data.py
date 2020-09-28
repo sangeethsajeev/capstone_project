@@ -37,7 +37,7 @@ class PreProcessData(object):
       # names += [('{}(t-{})'.format(columns[j], i)) for j in range(n_vars)]
     cols.append(dataset.shift(-0))
     # names += [('{}(t)'.format(columns[j])) for j in range(n_vars)]
-    new_df = concat(self.cols, axis=1)
+    new_df = concat(cols, axis=1)
     # new_df.columns = names
     new_df.dropna(inplace=True)
     return new_df
