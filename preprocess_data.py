@@ -21,7 +21,7 @@ class PreProcessData(object):
     self.n_features    = 9
 
   def data_pipeline(self,df):
-    pipeline = pdp.ColDrop(drop_cols)
+    pipeline = pdp.ColDrop(self.drop_cols)
     pipeline+=pdp.DropNa()
     pipeline+=pdp.Encode("cbwd")
     pipeline+=pdp.Scale('MinMaxScaler',exclude_columns=['pm2.5'])
@@ -37,7 +37,7 @@ class PreProcessData(object):
       # names += [('{}(t-{})'.format(columns[j], i)) for j in range(n_vars)]
     cols.append(dataset.shift(-0))
     # names += [('{}(t)'.format(columns[j])) for j in range(n_vars)]
-    new_df = concat(cols, axis=1)
+    new_df = concat(self.cols, axis=1)
     # new_df.columns = names
     new_df.dropna(inplace=True)
     return new_df
