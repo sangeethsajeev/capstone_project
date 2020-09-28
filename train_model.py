@@ -15,14 +15,13 @@ class TrainLSTM(object):
 		self.n_train_years	 = 3			#Training on 3 Years of Data
 		self.n_val_years	 = 1			#Validating on 1 Year of Data
 		self.n_test_years	 = 1			#Testing on 1 Year of Data
-		self.n_features		 = 9
 
 
 	def create_model(self):
 		model = tf.keras.Sequential()
 		model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, 
 			activation=self.activation_func, 
-			return_sequences=True), input_shape=(preProcessData.n_hours, n_features)))
+			return_sequences=True), input_shape=(preProcessData.n_hours, preProcessData.n_features)))
 		model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, 
 			activation=self.activation_func, 
 			return_sequences=True)))
@@ -64,12 +63,12 @@ class TrainLSTM(object):
 		train = values[:n_train_hours, :]
 		validate = values[n_train_hours:n_train_hours+n_valid_hours, :] #kept 1 year data for validation
 		test = values[n_train_hours+n_test_hours:, :] # 1 year data for test
-		n_attributes = n_hours * n_features
+		n_attributes = preProcessData.n_hours * preProcessData.n_features
 		train_X, train_y = train[:, :n_attributes], train[:, -1]
 		test_X, test_y = test[:, :n_attributes], test[:, -1]
 		validate_X, validate_y = validate[:, :n_attributes], validate[:, -1]
-		train_X = train_X.reshape((train_X.shape[0], preProcessData.n_hours, n_features))
-		validate_X = validate_X.reshape((validate_X.shape[0], n_hours, n_features))
+		train_X = train_X.reshape((train_X.shape[0], preProcessData.n_hours, preProcessData.n_features))
+		validate_X = validate_X.reshape((validate_X.shape[0], preProcessData.n_hours, preProcessData.n_features))
 
 		return train_X,train_y,validate_X,validate_y
 

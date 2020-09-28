@@ -15,9 +15,10 @@ import pdpipe as pdp
 class PreProcessData(object):
 
   def __init__(self):
-    self.drop_cols = ['No', 'year', 'month', 'day']
-    self.cols = ['hour','pm2.5','DEWP','TEMP','PRES','cbwd','Iws','Is','Ir']
-    self.n_hours = 4
+    self.drop_cols     = ['No', 'year', 'month', 'day']
+    self.cols          = ['hour','pm2.5','DEWP','TEMP','PRES','cbwd','Iws','Is','Ir']
+    self.n_hours       = 4
+    self.n_features    = 9
 
   def data_pipeline(self,df):
     pipeline = pdp.ColDrop(drop_cols)
