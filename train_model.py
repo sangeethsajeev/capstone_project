@@ -41,7 +41,7 @@ class TrainLSTM(object):
 
 	def fit_model(self,df):
 		model 	= self.load_model()
-		train_X,train_Y,validate_X,validate_Y = data_process(df)
+		train_X,train_Y,validate_X,validate_Y = self.data_process(df)
 		history = model.fit(train_X, train_Y, epochs=50, batch_size=72, 
 			validation_data=(validate_X,validate_Y),
 			verbose=0, shuffle=False)
