@@ -46,7 +46,7 @@ class PreProcessData(object):
     df_ = self.data_pipeline(df)
     values = df_.values
     values = values.astype('float32')
-    transformed_df = transform_data_many_to_one(values, df_.columns, self.n_hours)
+    transformed_df = self.transform_data_many_to_one(values, df_.columns, self.n_hours)
     transformed_df.drop(['hour(t)', 'DEWP(t)','TEMP(t)', 'PRES(t)', 'cbwd(t)', 'Iws(t)', 'Is(t)', 'Ir(t)'], axis=1, inplace=True)
     transformed_df.reset_index(drop=True, inplace=True)
 
