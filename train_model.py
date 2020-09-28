@@ -34,14 +34,14 @@ class TrainLSTM(object):
 		return model
 
 	def load_model(self):
-		model=create_model()
+		model = self.create_model()
 		if path.exists('weights/lstm_model.h5'):
 			model.load_weights('weights/lstm_model.h5')
 
 		return model
 
 	def fit_model(self,df):
-		model 	= load_model()
+		model 	= self.load_model()
 		train_X,train_Y,validate_X,validate_Y = data_process(df)
 		history = model.fit(train_X, train_Y, epochs=50, batch_size=72, 
 			validation_data=(validate_X,validate_Y),

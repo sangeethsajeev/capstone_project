@@ -42,7 +42,7 @@ class PreProcessData(object):
     return new_df
 
   def preprocess_df(self,df):
-    df_ = data_pipeline(df)
+    df_ = self.data_pipeline(df)
     values = df_.values
     values = values.astype('float32')
     transformed_df = transform_data_many_to_one(values, df_.columns, n_hours)
