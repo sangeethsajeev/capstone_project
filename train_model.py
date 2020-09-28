@@ -21,13 +21,13 @@ class TrainLSTM(object):
 	def create_model(self):
 		model = tf.keras.Sequential()
 		model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, 
-			activation=activation_func, 
+			activation=self.activation_func, 
 			return_sequences=True), input_shape=(n_hours, n_features)))
 		model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, 
-			activation=activation_func, 
+			activation=self.activation_func, 
 			return_sequences=True)))
 		model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(50, 
-			activation=activation_func)))
+			activation=self.activation_func)))
 		model.add(tf.keras.layers.Dense(1))
 		model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
@@ -58,9 +58,9 @@ class TrainLSTM(object):
 	def data_process(self,df):
 		transformed_df = preProcessData().preprocess_df(df)
 		values		   = transformed_df.values
-		n_train_hours  = 365*24*n_train_years
-		n_valid_hours  = 365*24*n_val_years
-		n_test_hours   = 365*24*n_test_hours
+		n_train_hours  = 365*24*self.n_train_years
+		n_valid_hours  = 365*24*self.n_val_years
+		n_test_hours   = 365*24*self.n_test_hours
 		train = values[:n_train_hours, :]
 		validate = values[n_train_hours:n_train_hours+n_valid_hours, :] #kept 1 year data for validation
 		test = values[n_train_hours+n_test_hours:, :] # 1 year data for test
