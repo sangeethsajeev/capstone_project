@@ -73,7 +73,7 @@ class TrainLSTM(object):
 
 	def test_model(self,df):
 		model = self.load_model(test_Flag=True)
-		test_X, test_Y = self.data_process(df,test_Flag=True)
+		test,test_X, test_Y = self.data_process(df,test_Flag=True)
 		predictions = []
 		for i in range(test_X.shape[0]-preProcessData.n_hours+1):
 			x_input = test_X[i:i+preProcessData.n_hours]
@@ -106,7 +106,7 @@ class TrainLSTM(object):
 		validate_X = validate_X.reshape((validate_X.shape[0], preProcessData.n_hours, preProcessData.n_features))
 
 		if(test_Flag):
-			return test_X,test_y
+			return test,test_X,test_y
 		else:
 			return train_X,train_y,validate_X,validate_y
 
