@@ -1,6 +1,6 @@
 import tensorflow as tf
 from os import path
-
+import numpy as np
 
 from preprocess_data import PreProcessData
 preProcessData = PreProcessData()
@@ -81,7 +81,7 @@ class TrainLSTM(object):
 			if i%1000==0 and i>0:
 				print("Predictions done for {} records".format(i))
 
-		res_arr = numpy.array(predictions)
+		res_arr = np.array(predictions)
 		res_arr = res_arr.reshape(len(res_arr), 1)
 		rmse = sqrt(mean_squared_error(res_arr[:-1], test[preProcessData.n_hours:, 1:2]))
 		print('RMSE Score: {}'.format(rmse))
