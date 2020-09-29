@@ -75,8 +75,11 @@ class TrainLSTM(object):
 		model = self.load_model(test_Flag=True)
 		test,test_X, test_Y = self.data_process(df,test_Flag=True)
 		predictions = []
-		for i in range(test_X.shape[0]-preProcessData.n_hours+1):
-			x_input = test_X[i:i+preProcessData.n_hours]
+		for i in range(preProcessData.n_hours,test_X.shape[0]):
+			if test_X.shape[0]<preProcessData.n_hours:
+				print("Not enough samples to make a prediction")
+				break
+			x_input = test_X[i-preProcessData.n_hours:i]
 			x_input = x_input.reshape((preProcessData.n_hours, preProcessData.n_hours, preProcessData.n_features))
 			prediction = model.predict(x_input, verbose=0)
 			predictions.append(prediction[0][0])
