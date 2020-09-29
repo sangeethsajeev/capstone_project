@@ -32,11 +32,11 @@ class PreProcessData(object):
     cols, names = list(), list()
     for i in range(time_steps, 0, -1):
       cols.append(dataset.shift(i))
-      # names += [('{}(t-{})'.format(columns[j], i)) for j in range(n_vars)]
+      names += [('{}(t-{})'.format(columns[j], i)) for j in range(n_vars)]
     cols.append(dataset.shift(-0))
-    # names += [('{}(t)'.format(columns[j])) for j in range(n_vars)]
+    names += [('{}(t)'.format(columns[j])) for j in range(n_vars)]
     new_df = concat(cols, axis=1)
-    # new_df.columns = names
+    new_df.columns = names
     new_df.dropna(inplace=True)
     return new_df
 
@@ -45,8 +45,8 @@ class PreProcessData(object):
     values = df_.values
     values = values.astype('float32')
     transformed_df = self.transform_data_many_to_one(values, df_.columns, self.n_hours)
-    # transformed_df.drop(['hour(t)', 'DEWP(t)','TEMP(t)','PRES(t)','cbwd(t)','Iws(t)','Is(t)',
-      # 'Ir(t)'], axis=1, inplace=True)
+    transformed_df.drop(['hour(t)', 'DEWP(t)','TEMP(t)','PRES(t)','cbwd(t)','Iws(t)','Is(t)',
+      'Ir(t)'], axis=1, inplace=True)
     transformed_df.reset_index(drop=True, inplace=True)
 
     return transformed_df
