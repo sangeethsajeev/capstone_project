@@ -13,7 +13,7 @@ This dataset contains the hourly data for PM2.5 levels at US Embassy in Beijing 
 
 ## Basic EDA steps 
 
-1. Handling Missing Values - Drop as count of those is less than 5%. Also majority of missing is in Target fetures.
+1. Handling Missing Values - Drop as count of those is less than 5%. Also majority of missing is in Target features.
 
 ## Feature Engineering
 
@@ -23,9 +23,9 @@ This dataset contains the hourly data for PM2.5 levels at US Embassy in Beijing 
 4. Reshaping dataset - (Sample, Time-steps, Features)
 
 ## Model
-As we will be forecasting the pollution level based on last N timsteps, LSTM Network seem fit for the problem. Working of LSTM Model is described in here [LSTM in Simple Words](https://medium.com/the-innovation/lstm-introduction-in-simple-words-fe544a45f1e7).Long Short Term Model is capable of retaning information like seasonal and periodical varaition in data along with the regression attributes. We have explored variations of the model before finalizing the current model.
+As we will be forecasting the pollution level based on last N timsteps, LSTM Network seem fit for the problem. Working of LSTM Model is described over here [LSTM in Simple Words](https://medium.com/the-innovation/lstm-introduction-in-simple-words-fe544a45f1e7). Long Short Term Model is capable of retaning information like seasonal and periodical variation in data along with the regression attributes. We have explored variations of the model before finalizing the current model.
 
-Results on different variations in the model.
+Results of different variations if the model we experimented with are below:
 
 | Model     | Layers  | Neurons |  Activation | RMSE  |
 | ----------|:-------:| -------:| -----------:| -----:|
@@ -37,7 +37,7 @@ Results on different variations in the model.
 | BiLSTM    | 3       | 64      |  relu       |  23   |
 | BiLSTM    | 3       | 64      |  selu       |  20   |
 
-Other parameters like epoch (20-100), optimizer(adam, sgd), learning rate(0.001 and 0.01) were also explored see notebook for details.
+Other parameters like epoch (20-100), optimizer(adam, sgd), learning rate(0.001 and 0.01) were also explored (see notebook for details).
 
 ## Model Architecture
 
@@ -55,11 +55,11 @@ The solutoion is deployed on AWS and we are leveraging AWS CFN to maintain infra
 
 ### CloudFormation resources being deployed are grouped according to there purpose
 
-1. Base Service - VPC, Subnet, Ruote Table, Security Group
+1. Base Service - VPC, Subnet, Route Table, Security Group
 2. Simulation Services -  Autoscaling + LaunchConfiguration + Greengrass Core
 3. IoT Services -  Rule, Subscription, Topic
 4. Machine Learning Services - Sagemaker Notebook and Training Jobs
-5. Auxiallry Services -  S3, IAM, Certificates etc.
+5. Auxillary Services -  S3, IAM, Certificates etc.
 
 ### Steps for Deployment
 
