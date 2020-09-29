@@ -70,7 +70,7 @@ class TrainLSTM(object):
 		return n_train_hours,n_valid_hours,n_test_hours
 
 	def test_model(self,df):
-		model = self.load_model(test_Flag=True)
+		model = self.load_model(df,test_Flag=True)
 		test_X, test_Y = self.data_process(test_Flag=True)
 		predictions = []
 		for i in range(test_X.shape[0]-preProcessData.n_hours+1):
