@@ -37,11 +37,11 @@ class TrainLSTM(object):
 
 		if path.exists('weights/lstm_model.h5') and test_Flag:
 			model.load_weights('weights/lstm_model.h5')
+			print("Training Weights Loaded Sucessfully..!")
 		elif path.exists('weights/lstm_model.h5'):
 			model.load_weights('weights/lstm_model.h5')
 		else:
-			print("Model Not Trained...!!")
-			print("Please consider training the Model Before Testing..!!")
+			print("Untrained Model")
 
 		return model
 
@@ -51,12 +51,12 @@ class TrainLSTM(object):
 		history = model.fit(train_X, train_Y, epochs=50, batch_size=72, 
 			validation_data=(validate_X,validate_Y),
 			verbose=0, shuffle=False)
-		print("Training Loss:	",history.history['loss'],
-			"Validation Loss:	",history.history['val_loss'],
-			"Accuracy:	",history.history['accuracy'])
-		print("--------------------------------------------------------------------------------")
+		# print("Training Loss:	",history.history['loss'],
+		# 	"Validation Loss:	",history.history['val_loss'],
+		# 	"Accuracy:	",history.history['accuracy'])
+		print("--------------------------------------------------------------------------------\n\n\n\n")
 		print(model.summary())
-		print("--------------------------------------------------------------------------------")
+		print("\n\n\n\n--------------------------------------------------------------------------------")
 		
 		model.save_weights('weights/lstm_model.h5')
 
