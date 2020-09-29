@@ -41,11 +41,11 @@ Other parameters like epoch (20-100), optimizer(adam, sgd), learning rate(0.001 
 
 ## Model Architecture
 
-Placeholder for LSTM model image
+![Model Architecture](https://github.com/sangeethsajeev/capstone_project/blob/dev/images/NeuralNetworkArch.jpg)
 
 ## Model result comparision actual vs forecasted
 
-Placeholder for results image
+![Model Forecast Visuals](https://github.com/sangeethsajeev/capstone_project/blob/dev/images/PredictionResults.jpg)
 
 ## Deployment Strategy
 
