@@ -1,6 +1,6 @@
 import pandas as pd
 
-from train_model import TrainLSTM
+from train_test_model import TrainLSTM
 
 trainLSTM = TrainLSTM()
 
