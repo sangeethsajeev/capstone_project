@@ -9,22 +9,64 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler
 import seaborn as sns
 import pdpipe as pdp
+from os import path
+from joblib import load,dump
 
 class PreProcessData(object):
 
   def __init__(self):
-    self.drop_cols     = ['No', 'year', 'month', 'day']
-    self.cols          = ['hour','pm2.5','DEWP','TEMP','PRES','cbwd','Iws','Is','Ir']
-    self.n_hours       = 4
-    self.n_features    = 9
+    ## These columns will be dropped from the dataframe
+    self.drop_cols          = ['No', 'year', 'month', 'day']
+    ## These columns will be processed further     
+    self.cols               = ['hour','pm2.5','DEWP','TEMP','PRES','cbwd','Iws','Is','Ir']
+    ##  These columns will be Label Encoded
+    self.label_encode_cols  = ['cbwd']
+    ## These columns will be excluded from MinMaxScaling
+    self.scale_excCols      = ['pm2.5']
+    ## This is the number of historic data we will consider before predicting the nth hour.
+    self.n_hours            = 4
+    ## The number of useful features in the dataset
+    self.n_features         = 9
 
+  ## Custom Function to load and dump previously used MinMaxScaling values
+  def scaler(self,df):
+    if path.exists('params/scaler.joblib'):
+      scaler = load('params/scaler.joblib')
+      print("MinMaxScaler from Previous Training Loaded...")
+    else:
+      scaler = MinMaxScaler()
+
+    for i in self.cols:
+      if i not in self.scale_excCols:
+        df[i] = scaler.fit_transform(df[[i]])
+
+    dump(scaler,'params/scaler.joblib')
+    return df
+
+  ## Custom function to load and dump previously used Encoding Schemes
+  def encoder(self,df,col,exclude_columns=None):
+    if path.exists('params/encoder.joblib'):
+      labelEncoder = load('params/encoder.joblib')
+      print("LabelEncoder from Previous Training Loaded...")
+    else:
+      labelEncoder = LabelEncoder()
+
+    for i in label_encode_cols:
+      df[i] = labelEncoder.fit_transform(df[i])
+
+    dump(labelEncoder, 'params/encoder.joblib')
+    return df
+
+  ## Pipeline for Data Processing
   def data_pipeline(self,df):
     pipeline = pdp.ColDrop(self.drop_cols)
     pipeline+=pdp.DropNa()
-    pipeline+=pdp.Encode("cbwd")
-    pipeline+=pdp.Scale('MinMaxScaler',exclude_columns=['pm2.5'])
+    df = pipeline(df)
 
-    return pipeline(df)
+    df = self.encoder(df)
+    df = self.scaler(df)
+
+    return df
 
   def transform_data_many_to_one(self,data, columns, time_steps=1):
     n_vars = data.shape[1]
