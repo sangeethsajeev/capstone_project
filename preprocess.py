@@ -44,14 +44,14 @@ class PreProcessData(object):
     return df
 
   ## Custom function to load and dump previously used Encoding Schemes
-  def encoder(self,df,col,exclude_columns=None):
+  def encoder(self,df):
     if path.exists('params/encoder.joblib'):
       labelEncoder = load('params/encoder.joblib')
       print("LabelEncoder from Previous Training Loaded...")
     else:
       labelEncoder = LabelEncoder()
 
-    for i in label_encode_cols:
+    for i in self.label_encode_cols:
       df[i] = labelEncoder.fit_transform(df[i])
 
     dump(labelEncoder, 'params/encoder.joblib')
