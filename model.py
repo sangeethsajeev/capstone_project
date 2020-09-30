@@ -4,7 +4,7 @@ import numpy as np
 from math import sqrt
 from sklearn.metrics import mean_squared_error
 
-from preprocess_data import PreProcessData
+from preprocess import PreProcessData
 preProcessData = PreProcessData()
 
 class TrainLSTM(object):
