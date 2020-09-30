@@ -95,7 +95,7 @@ class TrainLSTM(object):
 		return res_arr
 
 	def data_process(self,df,test_Flag=False):
-		transformed_df = preProcessData.preprocess_df(df)
+		transformed_df = preProcessData.preprocess_df(df,test_Flag)
 		values		   = transformed_df.values
 		n_train_hours, n_valid_hours, n_test_hours = self.get_hours()
 		train = values[:n_train_hours, :]

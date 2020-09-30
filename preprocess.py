@@ -27,6 +27,8 @@ class PreProcessData(object):
     self.n_hours            = 4
     ## The number of useful features in the dataset
     self.n_features         = 9
+    ## Flag True for Testing Cases
+    self.testFlag           = False
 
   ## Custom Function to load and dump previously used MinMaxScaling values
   def scaler(self,df):
@@ -40,7 +42,12 @@ class PreProcessData(object):
       if i not in self.scale_excCols:
         df[i] = scaler.fit_transform(df[[i]])
 
-    dump(scaler,'params/scaler.joblib')
+    if not self.testFlag:
+      print("Training Mode - Scaler Updated ...")
+      dump(scaler,'params/scaler.joblib')
+    else:
+      print("Testing Mode - Scalers Not Updated ...")
+      
     return df
 
   ## Custom function to load and dump previously used Encoding Schemes
@@ -54,7 +61,12 @@ class PreProcessData(object):
     for i in self.label_encode_cols:
       df[i] = labelEncoder.fit_transform(df[i])
 
-    dump(labelEncoder, 'params/encoder.joblib')
+    if not self.testFlag:
+      print("Training Mode - Encoder Updated ...")
+      dump(labelEncoder, 'params/encoder.joblib')
+    else:
+      print("Testing Mode - Encoders not Updated ...")
+
     return df
 
   ## Pipeline for Data Processing
@@ -82,7 +94,8 @@ class PreProcessData(object):
     new_df.dropna(inplace=True)
     return new_df
 
-  def preprocess_df(self,df):
+  def preprocess_df(self,df,testFlag):
+    self.testFlag=testFlag
     df_ = self.data_pipeline(df)
     values = df_.values
     values = values.astype('float32')
