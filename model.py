@@ -88,7 +88,7 @@ class TrainLSTM(object):
 
 		res_arr = np.array(predictions)
 		res_arr = res_arr.reshape(len(res_arr), 1)
-		rmse = sqrt(mean_squared_error(res_arr[:-1], test[preProcessData.n_hours:, 1:2]))
+		rmse = sqrt(mean_squared_error(res_arr[:], test[preProcessData.n_hours:, 1:2]))
 		print('RMSE Score: {}'.format(rmse))
 		print("Prediction Complete")
 
