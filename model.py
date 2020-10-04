@@ -4,7 +4,7 @@ import numpy as np
 from math import sqrt
 from sklearn.metrics import mean_squared_error
 
-from preprocess_data import PreProcessData
+from preprocess import PreProcessData
 preProcessData = PreProcessData()
 
 class TrainLSTM(object):
@@ -75,8 +75,11 @@ class TrainLSTM(object):
 		model = self.load_model(test_Flag=True)
 		test,test_X, test_Y = self.data_process(df,test_Flag=True)
 		predictions = []
-		for i in range(test_X.shape[0]-preProcessData.n_hours+1):
-			x_input = test_X[i:i+preProcessData.n_hours]
+		for i in range(preProcessData.n_hours,test_X.shape[0]):
+			if test_X.shape[0]<preProcessData.n_hours:
+				print("Not enough samples to make a prediction")
+				break
+			x_input = test_X[i-preProcessData.n_hours:i]
 			x_input = x_input.reshape((preProcessData.n_hours, preProcessData.n_hours, preProcessData.n_features))
 			prediction = model.predict(x_input, verbose=0)
 			predictions.append(prediction[0][0])
@@ -85,14 +88,14 @@ class TrainLSTM(object):
 
 		res_arr = np.array(predictions)
 		res_arr = res_arr.reshape(len(res_arr), 1)
-		rmse = sqrt(mean_squared_error(res_arr[:-1], test[preProcessData.n_hours:, 1:2]))
+		rmse = sqrt(mean_squared_error(res_arr[:], test[preProcessData.n_hours:, 1:2]))
 		print('RMSE Score: {}'.format(rmse))
 		print("Prediction Complete")
 
 		return res_arr
 
 	def data_process(self,df,test_Flag=False):
-		transformed_df = preProcessData.preprocess_df(df)
+		transformed_df = preProcessData.preprocess_df(df,test_Flag)
 		values		   = transformed_df.values
 		n_train_hours, n_valid_hours, n_test_hours = self.get_hours()
 		train = values[:n_train_hours, :]
