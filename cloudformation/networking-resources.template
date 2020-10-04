@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create networking resources for PM2.5 IoT app
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.128.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Sub: "${AWS::StackName}:iot-app-vpc"
+    
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: "${AWS::StackName}:iot-app-IGW"
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC
+    
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+      - Key: StackName
+        Value:
+          Fn::Sub: "${AWS::StackName}:iot-app-routetable"
+      VpcId:
+        Ref: VPC
+ 
+  Route:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: RouteTable
+  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Sub: "${AWS::StackName}:iot-app-SecurityGroup" 
+      GroupDescription: Enable access to MQTT and SSH port
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 
+          IpProtocol: tcp
+          ToPort: 
+        - CidrIp: 0.0.0.0/0
+          FromPort: 
+          IpProtocol: TCP
+          ToPort: 
+      VpcId:
+        Ref: VPC
+    
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::Region
+            - a
+      CidrBlock: 192.168.128.0/25
+      MapPublicIpOnLaunch: true
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: "${AWS::StackName}:iot-app-subnet"
+    
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: RouteTable
+      SubnetId:
+        Ref: Subnet
+
+Outputs:
+  VpcId:
+    Value:
+      Ref: Vpc
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}:iot-app-vpc"
+  
+  SubnetId:
+    Value: 
+      Ref: Subnet
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}:iot-app-vpc:Subnet"
+  
+  SecurityGroupId:
+    Value:
+      Ref: SecurityGroup
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}:iot-app-vpc:SecurityGroup"
+  
+

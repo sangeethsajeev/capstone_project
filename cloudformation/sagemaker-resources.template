@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create resource for IoT Demo with PM2.5
+
+Parameters:
+  SourceS3Bucket:
+    Type: String
+  IotAnalyticsSqlDataset:
+    Type: String
+
+Resources:
+  SageMakerNotebookInstanceLifecycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      OnCreate:
+      - Content:
+          Fn::Base64:
+            Fn::Join:
+            - ''
+            - |-
+              - "cd /tmp/\n"
+              - "Fn::Sub": "wget -O lstm-model.zip https://${SourceS3Bucket}.s3.amazonaws.com/lstm-model.zip\n"
+              - "mkdir resources\n"
+              - "unzip lstm-model.zip -d resources\n"
+              - "mv resources/* /home/ec2-user/SageMaker/\n"
+              - "/home/ec2-user/anaconda3/envs/tensorflow_p36/bin/python -m pip install statsmodels==0.10.0rc2 --pre\n"
+              - "Fn::Sub": "sed -i -e 's/XYZ-IotAnalyticsDataset-XYZ/${IotAnalyticsSqlDataset}/g' -e 's/XYZ-S3Bucket-XYZ/${SourceS3Bucket}/g' /home/ec2-user/SageMaker/pollutionPredictionLSTM-Training.ipynb\n"
+              - "sudo pkill -f jupyter\n"
+      OnStart:
+      - Content:
+          Fn::Base64:
+            Fn::Join:
+            - ''
+            - |-
+              - "#!/bin/bash\n"
+              - "cd /tmp\n"
+              - "aws s3 cp s3://iotanalytics-notebook-containers/iota_notebook_containers.zip ./\n"
+              - "unzip iota_notebook_containers.zip\n"
+              - "su - ec2-user -c \"source activate JupyterSystemEnv && cd /tmp/iota_notebook_containers && sh install.sh\""
+    
+  SagemakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - sagemaker.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Path: "/"
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - s3:Get*
+            - s3:Put*
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:s3:::${Sagemaker}*
+          Version: '2012-10-17'
+        PolicyName: SagemakerExecutionRoleS3InlinePolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - s3:Get*
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:s3:::iotanalytics-notebook-containers/*
+          Version: '2012-10-17'
+        PolicyName: SagamkerIotanalyticsPluginAccess
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - iotanalytics:*
+            Effect: Allow
+            Resource: "*"
+          Version: '2012-10-17'
+        PolicyName: SagemakerExecutionRoleIotAnalyticsInlinePolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - iam:GetRole
+            Effect: Allow
+            Resource: "*"
+          Version: '2012-10-17'
+        PolicyName: SagemakerExecutionRoleIamInlinePolicy
+    
+  SagemakerNotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      InstanceType: ml.m4.xlarge
+      LifecycleConfigName:
+        Fn::GetAtt:
+        - SageMakerNotebookInstanceLifecycleConfig
+        - NotebookInstanceLifecycleConfigName
+      RoleArn:
+        Fn::GetAtt:
+        - SagemakerExecutionRole
+        - Arn
+
+Outputs:
+  StackArn:
+    Value:
+      Ref: AWS::StackId

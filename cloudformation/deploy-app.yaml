@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to deploy the iot app for PM2.5 forecasting
+
+Parameters:
+
+  SourceS3Bucket:
+    Type: String
+  InstanceType:
+    Type: String
+
+Resources:
+  NetworkingStack:
+    Type: AWS::Cloudformation::Stack
+    Properties:
+      TemplateURL:
+        Fn::Sub: "${SourceS3Bucket}/cloudformation/networking-resources.template" 
+
+  GreengrassEmulationStack:
+    Type: AWS::Cloudformation::Stack
+    Properties:
+      TemplateURL:
+        Fn::Sub: "${SourceS3Bucket}/cloudformation/greengrass-simulation-device.template"
+      Parameters:
+        InstanceType: 
+          Ref: InstanceType
+        SourceS3Bucket:
+          Ref: SourceS3Bucket
+
+  SagemakerStack:
+    Type: AWS::Cloudformation::Stack
+    Properties:
+      TemplateURL:
+        Fn::Sub: "${SourceS3Bucket}/cloudformation/sagemaker-resources.template"
+
+
+
+
