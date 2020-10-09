@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Template to create networking resources for PM2.5 IoT app
 
+Parameters:
+  ResourceNamespace:
+    Type: String
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -11,7 +15,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          Fn::Sub: "${AWS::StackName}:iot-app-vpc"
+          Fn::Sub: "${ResourceNamespace}-nw-vpc"
     
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -19,7 +23,7 @@ Resources:
       Tags:
       - Key: Name
         Value:
-          Fn::Sub: "${AWS::StackName}:iot-app-IGW"
+          Fn::Sub: "${ResourceNamespace}-nw-IGW"
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -35,7 +39,7 @@ Resources:
       Tags:
       - Key: StackName
         Value:
-          Fn::Sub: "${AWS::StackName}:iot-app-routetable"
+          Fn::Sub: "${ResourceNamespace}-nw-routetable"
       VpcId:
         Ref: VPC
  
@@ -52,7 +56,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Sub: "${AWS::StackName}:iot-app-SecurityGroup" 
+        Fn::Sub: "${ResourceNamespace}-nw-vpc-SecurityGroup" 
       GroupDescription: Enable access to MQTT and SSH port
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
@@ -81,7 +85,7 @@ Resources:
       Tags:
         - Key: Name
           Value:
-            Fn::Sub: "${AWS::StackName}:iot-app-subnet"
+            Fn::Sub: "${ResourceNamespace}-subnet"
     
   SubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -97,20 +101,20 @@ Outputs:
       Ref: Vpc
     Export:
       Name:
-        Fn::Sub: "${AWS::StackName}:iot-app-vpc"
+        Fn::Sub: "${ResourceNamespace}-nw-vpc"
   
   SubnetId:
     Value: 
       Ref: Subnet
     Export:
       Name:
-        Fn::Sub: "${AWS::StackName}:iot-app-vpc:Subnet"
+        Fn::Sub: "${ResourceNamespace}-nw-vpc-Subnet"
   
   SecurityGroupId:
     Value:
       Ref: SecurityGroup
     Export:
       Name:
-        Fn::Sub: "${AWS::StackName}:iot-app-vpc:SecurityGroup"
+        Fn::Sub: "${ResourceNamespace}-nw-vpc-SecurityGroup"
   
 

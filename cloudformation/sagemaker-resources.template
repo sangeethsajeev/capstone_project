@@ -4,8 +4,13 @@ Description: Template to create resource for IoT Demo with PM2.5
 Parameters:
   SourceS3Bucket:
     Type: String
+  ResourceNamespace:
+    Type: String
   IotAnalyticsSqlDataset:
     Type: String
+    Default:
+      Fn::Import:
+        Fn::Sub: ${ResourceNamespace}-iot-dataset
 
 Resources:
   SageMakerNotebookInstanceLifecycleConfig:
@@ -16,22 +21,20 @@ Resources:
           Fn::Base64:
             Fn::Join:
             - ''
-            - |-
+            - - "#!/bin/bash\n"
               - "cd /tmp/\n"
-              - "Fn::Sub": "wget -O lstm-model.zip https://${SourceS3Bucket}.s3.amazonaws.com/lstm-model.zip\n"
-              - "mkdir resources\n"
-              - "unzip lstm-model.zip -d resources\n"
+			  - "mkdir resources\n"
+              - "Fn::Sub": "aws s3 cp s3://${SourceS3Bucket}/sagemaker/ ./resources/ \n"
               - "mv resources/* /home/ec2-user/SageMaker/\n"
               - "/home/ec2-user/anaconda3/envs/tensorflow_p36/bin/python -m pip install statsmodels==0.10.0rc2 --pre\n"
-              - "Fn::Sub": "sed -i -e 's/XYZ-IotAnalyticsDataset-XYZ/${IotAnalyticsSqlDataset}/g' -e 's/XYZ-S3Bucket-XYZ/${SourceS3Bucket}/g' /home/ec2-user/SageMaker/pollutionPredictionLSTM-Training.ipynb\n"
+              - "Fn::Sub": "sed -i -e 's/XYZ-IotAnalyticsDataset-XYZ/${IotAnalyticsSqlDataset}/g' -e 's/XYZ-S3Bucket-XYZ/${SourceS3Bucket}/g' /home/ec2-user/SageMaker/BiLSTM-Training.ipynb\n"
               - "sudo pkill -f jupyter\n"
       OnStart:
       - Content:
           Fn::Base64:
             Fn::Join:
             - ''
-            - |-
-              - "#!/bin/bash\n"
+            - - "#!/bin/bash\n"
               - "cd /tmp\n"
               - "aws s3 cp s3://iotanalytics-notebook-containers/iota_notebook_containers.zip ./\n"
               - "unzip iota_notebook_containers.zip\n"

@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Template to create resources for GreenGrass device simulation
 
+Parameters:
+  ResourceNamespace:
+    Type: String
+
 Mappings:
   RegionMap:
     ap-northeast-1:
@@ -38,7 +42,8 @@ Resources:
           Value:
             Ref: AWS::StackName
       VPCZoneIdentifier:
-        Ref: Subnet
+        Fn::Import:
+          Fn::Sub: ${ResourceNamespace}--nw-vpc-Subnet
 
   DataIngestorLambda:
     Type: AWS::Lambda::Function
@@ -540,7 +545,8 @@ Resources:
       InstanceType:
         Ref: InstanceType
       SecurityGroups:
-        - Ref: SecurityGroup
+        - Fn::Import:
+            Fn::Sub: ${ResourceNamespace}-nw-vpc-SecurityGroup
       UserData:
         Fn::Base64:
           Fn::Sub: |
@@ -612,38 +618,6 @@ Resources:
           - ''
           - - Ref: AWS::StackName
             - GreengrassGroupCore
-
-  IotEventDetectorModelRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Action:
-              - sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - iotevents.amazonaws.com
-      Path: "/"
-      Policies:
-      - PolicyName: iotMqttPublish
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Action:
-              - iot:Publish
-            Effect: Allow
-            Resource:
-              Fn::Join:
-                - ''
-                - - "arn:aws:iot:"
-                  - Ref: "AWS::Region"
-                  - ":"
-                  - Ref: "AWS::AccountId"
-                  - ":"
-                  - "topic/"
-                  - "pollution/data/model/accuracy"
 
   IoTEventsDetectorModel:
     Type: AWS::IoTEvents::DetectorModel
@@ -879,21 +853,6 @@ Resources:
             Version: '2012-10-17'
             PolicyName: IotRuleRoleInlinePolicy
     
-  IotTopicRule:
-    Type: AWS::IoT::TopicRule
-    Properties:
-      TopicRulePayload:
-        Actions:
-          - IotAnalytics:
-              ChannelName:
-                Ref: IotAnalyticsChannel
-              RoleArn:
-                Fn::GetAtt:
-                  - IotRuleRole
-                  - Arn
-        RuleDisabled: true
-        Sql: SELECT * FROM 'pollution/data'
-    
   ThingPrincipalAttachment:
     Type: AWS::IoT::ThingPrincipalAttachment
     Properties:
@@ -960,15 +919,6 @@ Resources:
           - Arn
       Runtime: python3.6
       Timeout: 300
-    
-  GreengrassGroupCoreThing:
-    Type: AWS::IoT::Thing
-    Properties:
-      ThingName:
-        Fn::Join:
-          - ''
-          - - Ref: AWS::StackName
-            - GreengrassGroupCore
 
   IotEventDetectorModelRole:
     Type: AWS::IAM::Role
@@ -1002,237 +952,6 @@ Resources:
                       - "topic/"
                       - "pollution/data/model/accuracy"
 
-  IoTEventsDetectorModel:
-    Type: AWS::IoTEvents::DetectorModel
-    Properties:
-      DetectorModelDefinition:
-        InitialStateName: ModelAccurate
-        States:
-          - StateName: ModelAccurate
-            OnEnter:
-              Events:
-                - EventName: InitializeVariable
-                  Actions:
-                    - SetVariable:
-                      Value: 0
-                      VariableName: Count
-                    - SetVariable:
-                      Value: 0
-                      VariableName: IncorrectPredictions
-            OnInput:
-              Events:
-                - EventName: IncrementCount
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.Count + 1"
-                      VariableName: Count
-                - EventName: IncorrectPrediction
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.IncorrectPredictions + 1"
-                      VariableName: IncorrectPredictions
-                  Condition:
-                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) > 0.1) || (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) < -0.1)"
-                - EventName: CorrectPrediction 
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.IncorrectPredictions - 1"
-                      VariableName: IncorrectPredictions
-                  Condition:
-                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) <= 0.1) && (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) >= -0.1)"
-              TransitionEvents:
-                - EventName: TransitionToInaccurateModel
-                  Condition: "(1.0*$variable.IncorrectPredictions)/$variable.Count > 0.10 && $variable.Count > 5"
-                  NextState: ModelInAccurate
-
-          - StateName: ModelInAccurate
-            OnEnter:
-              Events:
-                - EventName: SendMqttMessage
-                  Actions:
-                    - IotTopicPublish:
-                      MqttTopic: pollution/data/model/accuracy      
-            OnInput:
-              Events:
-                - EventName: IncrementCount
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.Count + 1"
-                      VariableName: Count
-                - EventName: IncorrectPrediction
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.IncorrectPredictions + 1"
-                      VariableName: IncorrectPredictions
-                  Condition:
-                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) > 0.1) || (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) < -0.1)"
-                - EventName: CorrectPrediction
-                  Actions:
-                    - SetVariable:
-                      Value: "$variable.IncorrectPredictions - 1"
-                      VariableName: IncorrectPredictions
-                  Condition:
-                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) <= 0.1) && (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) >= -0.1)"
-              TransitionEvents:
-                - EventName: TransitionToAccurateModel
-                  Condition: "(1.0*$variable.IncorrectPredictions)/$variable.Count < 0.10 && $variable.Count > 5"
-                  NextState: ModelAccurate
-      RoleArn:
-        Fn::GetAtt:
-          - IotEventDetectorModelRole
-          - Arn
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IoTEventsInput:
-    Type: AWS::IoTEvents::Input
-    Properties:
-      InputDefinition:
-        Attributes:
-          - JsonPath: predicted_pollution
-          - JsonPath: actual_pollution
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IotAnalyticsChannel:
-    Type: AWS::IoTAnalytics::Channel
-    Properties:
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IotAnalyticsDatastore:
-    Type: AWS::IoTAnalytics::Datastore
-    Properties:
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IotAnalyticsPipeline:
-    Type: AWS::IoTAnalytics::Pipeline
-    Properties:
-      PipelineActivities:
-        - Channel:
-            Name: ChannelActivity
-            ChannelName:
-              Ref: IotAnalyticsChannel
-            Next: DatastoreActivity
-          Datastore:
-            Name: DatastoreActivity
-            DatastoreName:
-              Ref: IotAnalyticsDatastore
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IotAnalyticsSqlDataset:
-    Type: AWS::IoTAnalytics::Dataset
-    Properties:
-      Actions:
-        - ActionName: SqlAction
-          QueryAction:
-            SqlQuery:
-              Fn::Join:
-                - ''
-                - - "SELECT * FROM "
-                  - Ref: "IotAnalyticsDatastore"
-      Tags:
-        - Key: StackName
-          Value:
-            Ref: AWS::StackName
-
-  IotEventsTopicRuleRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Action:
-              - sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - iot.amazonaws.com
-      Path: "/"
-      Policies:
-        - PolicyDocument:
-            PolicyName: IotEventsTopicRuleRoleInlinePolicy
-            Version: '2012-10-17'
-            Statement:
-              - Action:
-                  - iotevents:BatchPutMessage
-                Effect: Allow
-                Resource:
-                  Fn::Join:
-                    - ''
-                    - - "arn:aws:iotevents:"
-                      - Ref: "AWS::Region"
-                      - ":"
-                      - "Ref": "AWS::AccountId"
-                      - ":"
-                      - "input/"
-                      - Ref: "IoTEventsInput"
-
-  IotEventsTopicRule:
-    Type: Custom::TopicRuleIotEvents
-    Properties:
-      InputName:
-        Ref: IoTEventsInput
-      RoleArn:
-        Fn::GetAtt:
-          - IotEventsTopicRuleRole
-          - Arn
-      RuleName:
-        Fn::Join:
-          - ''
-          - - Ref: AWS::StackName
-            - IotEventsTopicRule
-      ServiceToken:
-        Fn::GetAtt:
-          - TopicRuleIotEventsFunction
-          - Arn
-      TopicDescription: Sending inference to iot events for model monitoring
-      TopicSql: SELECT * FROM 'pollution/data/infer'
-
-  IotRuleRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Action:
-              - sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - iot.amazonaws.com
-      Path: "/"
-      Policies:
-        - PolicyDocument:
-            Version: '2012-10-17'
-            PolicyName: IotRuleRoleInlinePolicy
-            Statement:
-              - Action:
-                  - iotanalytics:BatchPutMessage
-                Effect: Allow
-                Resource:
-                  Fn::Join:
-                    - ''
-                    - - "arn:aws:iotanalytics:"
-                      - Ref: "AWS::Region"
-                      - ":"
-                      - Ref: "AWS::AccountId"
-                      - ":"
-                      - "channel/"
-                      - Ref: "IotAnalyticsChannel"
-
   IotTopicRule:
     Type: AWS::IoT::TopicRule
     Properties:
@@ -1247,70 +966,11 @@ Resources:
                   - Arn
         RuleDisabled: true
         Sql: SELECT * FROM 'pollution/data'
-    
-  ThingPrincipalAttachment:
-    Type: AWS::IoT::ThingPrincipalAttachment
-    Properties:
-      Principal:
-        Fn::GetAtt:
-          - IotCertificateKey
-          - Arn
-      ThingName:
-        Ref: GreengrassGroupCoreThing
-        
-  TopicRuleIotEventsFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Action:
-              - sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-      Path: "/"
-      Policies:
-        - PolicyDocument:
-            Version: '2012-10-17'
-            PolicyName: createIotTopicRule
-            Statement:
-              - Action:
-                  - iot:CreateTopicRule
-                  - iot:DeleteTopicRule
-                Effect: Allow
-                Resource: "*"
-              - Action:
-                  - iam:PassRole
-                Effect: Allow
-                Resource:
-                  Fn::GetAtt:
-                    - IotEventsTopicRuleRole
-                    - Arn
-        - PolicyDocument:
-            Version: '2012-10-17'
-            PolicyName: cloudwatchLogging
-            Statement:
-              - Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Effect: Allow
-              Resource: arn:aws:logs:*:*:*
 
-  TopicRuleIotEventsFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Code: 
-        S3Bucket: 
-          Ref: SourceS3Bucket
-        S3Key: lambdaCode/TopicRuleIotEventsFunction.zip
-      Description: Create Topic Rule for Iot Events
-      Handler: TopicRuleIotEventsFunction.lambda_handler
-      Role:
-        Fn::GetAtt:
-          - TopicRuleIotEventsFunctionRole
-          - Arn
-      Runtime: python3.6
-      Timeout: 300
+Outputs:
+  IotAnalyticsSqlDataset:
+    Value:
+      Ref: IotAnalyticsSqlDataset
+    Export:
+      Name:
+        Fn::Sub: "${ResourceNamespace}-iot-dataset"

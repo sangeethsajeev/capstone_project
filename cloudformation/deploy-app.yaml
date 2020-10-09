@@ -13,7 +13,10 @@ Resources:
     Type: AWS::Cloudformation::Stack
     Properties:
       TemplateURL:
-        Fn::Sub: "${SourceS3Bucket}/cloudformation/networking-resources.template" 
+        Fn::Sub: "${SourceS3Bucket}/cloudformation/networking-resources.template"
+      Parameters:
+        ResourceNamespace: 
+          Ref: AWS::StackName 
 
   GreengrassEmulationStack:
     Type: AWS::Cloudformation::Stack
@@ -25,13 +28,14 @@ Resources:
           Ref: InstanceType
         SourceS3Bucket:
           Ref: SourceS3Bucket
+        ResourceNamespace: 
+          Ref: AWS::StackName
 
   SagemakerStack:
     Type: AWS::Cloudformation::Stack
     Properties:
       TemplateURL:
         Fn::Sub: "${SourceS3Bucket}/cloudformation/sagemaker-resources.template"
-
-
-
-
+      Parameters:
+        ResourceNamespace: 
+          Ref: AWS::StackName
