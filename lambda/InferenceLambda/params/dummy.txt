@@ -1,0 +1,1 @@
+Placeholder for params folder to be included into the git repo
