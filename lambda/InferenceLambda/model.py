@@ -4,10 +4,10 @@ import numpy as np
 from math import sqrt
 from sklearn.metrics import mean_squared_error
 
-from preprocess_data import PreProcessData
+from preprocess import PreProcessData
 preProcessData = PreProcessData()
 
-class TrainLSTM(object):
+class LSTM_Model(object):
 
 	## Change the HyperParameters to the Model here.
 	def __init__(self):
@@ -47,6 +47,7 @@ class TrainLSTM(object):
 
 		return model
 
+
 	def fit_model(self,df):
 		model 	= self.load_model()
 		train_X,train_Y,validate_X,validate_Y = self.data_process(df)
@@ -63,6 +64,20 @@ class TrainLSTM(object):
 		model.save_weights('weights/lstm_model.h5')
 
 		return "Fitting Complete"
+
+	def predict(self,df):
+		df_X = preProcessData.preprocess_df(df,test_Flag=True)
+
+		for i in range(preProcessData.n_hours,df_X.shape[0]):
+			if test_X.shape[0]<preProcessData.n_hours:
+				print("Not enough samples to make a prediction")
+				break
+			x_input = df_X[i-preProcessData.n_hours:i]
+			x_input = x_input.reshape((preProcessData.n_hours, preProcessData.n_hours, preProcessData.n_features))
+			prediction = model.predict(x_input, verbose=0)
+			predictions.append(prediction[0][0])
+
+		return predictions
 
 	def get_hours(self):
 		n_train_hours = 365*24*self.n_train_years
@@ -88,14 +103,23 @@ class TrainLSTM(object):
 
 		res_arr = np.array(predictions)
 		res_arr = res_arr.reshape(len(res_arr), 1)
-		rmse = sqrt(mean_squared_error(res_arr[:-1], test[preProcessData.n_hours:, 1:2]))
+		rmse = sqrt(mean_squared_error(res_arr[:], test[preProcessData.n_hours:, 1:2]))
 		print('RMSE Score: {}'.format(rmse))
 		print("Prediction Complete")
 
 		return res_arr
 
+	def test_data_process(self,df):
+		test_df = preProcessData.preprocess_df(df,test_Flag=True)
+		values  = test_df.values
+		_,_,n_test_hours = self.get_hours()
+		test 	= values[n_test_years:]
+		test_X, test_y = test[:, :n_attributes], test[:, -1]
+
+		return df[n_test_years:],test_X, test_y
+
 	def data_process(self,df,test_Flag=False):
-		transformed_df = preProcessData.preprocess_df(df)
+		transformed_df = preProcessData.preprocess_df(df,test_Flag)
 		values		   = transformed_df.values
 		n_train_hours, n_valid_hours, n_test_hours = self.get_hours()
 		train = values[:n_train_hours, :]

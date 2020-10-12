@@ -1,0 +1,976 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create resources for GreenGrass device simulation
+
+Parameters:
+  ResourceNamespace:
+    Type: String
+
+Mappings:
+  RegionMap:
+    ap-northeast-1:
+      imageId: ami-0ff21806645c5e492
+    eu-west-1:
+      imageId: ami-0ce71448843cb18a1
+    us-east-1:
+      imageId: ami-0b69ea66ff7391e80
+    us-east-2:
+      imageId: ami-00c03f7f7f2ec15c3
+    us-west-2:
+      imageId: ami-04b762b4289fba92b
+
+Parameters:
+  InstanceType:
+    Default: m4.xlarge
+    Type: String
+  SourceS3Bucket:
+    Type: String
+
+Resources:
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckGracePeriod: 
+      HealthCheckType: EC2
+      LaunchConfigurationName:
+        Ref: LaunchConfiguration
+      MaxSize: 
+      MetricsCollection:
+        Granularity: 1Minute
+      MinSize: 1
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+      VPCZoneIdentifier:
+        Fn::Import:
+          Fn::Sub: ${ResourceNamespace}--nw-vpc-Subnet
+
+  DataIngestorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: publish historical data to an mqtt topic
+      Code:
+        S3Bucket:
+          Ref: SourceS3Bucket
+        S3Key: lambdaCode/DataIngestorLambda.zip
+      Handler: DataIngestorLambda.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+        - DataIngestorLambdaRole
+        - Arn
+      Runtime: python3.6
+      Tags:
+      - Key: StackName
+        Value:
+          Ref: AWS::StackName
+      Timeout: 180
+    
+  DataIngestorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: "/"
+      Policies:
+      - PolicyName: cloudwatchLoggingPolicy
+        Version: '2012-10-17'
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+
+  DataIngestorLambdaVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      Description: Publish a version of the ingestor lambda
+      FunctionName:
+        Fn::GetAtt:
+          - DataIngestorLambda
+          - Arn
+
+  DataIngestorLambdaVersionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Description: Creating alias for published version
+      FunctionName:
+        Fn::GetAtt:
+          - DataIngestorLambda
+          - Arn
+      FunctionVersion:
+        Fn::GetAtt:
+          - DataIngestorLambdaVersion
+          - Version
+      Name:
+        Fn::Join:
+          - ''
+          - - "v"
+            - Fn::GetAtt:
+                - DataIngestorLambdaVersion
+                - Version
+
+  InferenceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: performs inference on test data using the deployed model
+      Code:
+        S3Bucket:
+          Ref: SourceS3Bucket
+        S3Key: lambdaCode/InferenceLambda.zip
+      Handler: InferenceLambda.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+          - InferenceLambdaRole
+          - Arn
+      Runtime: python3.6
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+      Timeout: 180
+
+  InferenceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: "/"
+      Policies:
+      - PolicyName: cloudwatchLoggingPolicy
+        Version: '2012-10-17'
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+
+  InferenceLambdaVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      Description: Publish a version of the inference lambda
+      FunctionName:
+        Fn::GetAtt:
+          - InferenceLambda
+          - Arn
+    
+  InferenceLambdaVersionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Description: Creating alias for published version
+      FunctionName:
+        Fn::GetAtt:
+          - InferenceLambda
+          - Arn
+      FunctionVersion:
+        Fn::GetAtt:
+          - InferenceLambdaVersion
+          - Version
+      Name:
+        Fn::Join:
+          - ''
+          - - "v"
+            - Fn::GetAtt:
+              - InferenceLambdaVersion
+              - Version
+
+  GreengrassFunctionDefinition:
+    Type: AWS::Greengrass::FunctionDefinition
+    Properties:
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroupFunction
+    
+  GreengrassFunctionDefinitionVersion:
+    Type: AWS::Greengrass::FunctionDefinitionVersion
+    Properties:
+      FunctionDefinitionId:
+        Ref: GreengrassFunctionDefinition
+      Functions:
+        - FunctionArn:
+            Ref: DataIngestorLambdaVersionAlias
+          FunctionConfiguration:
+            Environment:
+              ResourceAccessPolicies:
+                - Permission: ro
+                  ResourceId: accessToData
+            MemorySize: 
+            Timeout: 
+          Id: ingestionFunction
+        - FunctionArn:
+            Ref: InferenceLambdaVersionAlias
+          FunctionConfiguration:
+            Environment:
+              ResourceAccessPolicies:
+                - Permission: ro
+                  ResourceId: accessToData
+            MemorySize: 100000
+            Timeout: 7200
+          Id: inferenceFunction
+
+  GreengrassGroupCore:
+    Type: AWS::Greengrass::CoreDefinition
+    Properties:
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroupCore
+
+  GreengrassGroupCoreVersion:
+    Type: AWS::Greengrass::CoreDefinitionVersion
+    Properties:
+      CoreDefinitionId:
+        Ref: GreengrassGroupCore
+      Cores:
+        - CertificateArn:
+            Fn::GetAtt:
+              - IotCertificateKey
+              - Arn
+          Id: Core1
+          SyncShadow: true
+          ThingArn:
+            Fn::Join:
+              - ''
+              - - "arn:aws:iot:"
+                - Ref: "AWS::Region"
+                - ":"
+                - Ref: "AWS::AccountId"
+                - ":"
+                - "thing/"
+                - Ref: GreengrassGroupCoreThing
+
+  GreengrassLocalResourceDefinition:
+    Type: AWS::Greengrass::ResourceDefinition
+    Properties:
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroupLocalResource
+
+  GreengrassLocalResourceDefinitionVersion:
+    Type: AWS::Greengrass::ResourceDefinitionVersion
+    Properties:
+      ResourceDefinitionId:
+        Ref: GreengrassLocalResourceDefinition
+      Resources:
+        - Id: accessToData
+          Name: accessToData
+          ResourceDataContainer:
+            LocalVolumeResourceData:
+              DestinationPath: "/dest/"
+              GroupOwnerSetting:
+                AutoAddGroupOwner: true
+              SourcePath: "/src/"
+
+  GreengrassLoggerDefinition:
+    Type: AWS::Greengrass::LoggerDefinition
+    Properties:
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassLoggerDefinition
+
+  GreengrassLoggerDefinitionVersion:
+    Type: AWS::Greengrass::LoggerDefinitionVersion
+    Properties:
+      LoggerDefinitionId:
+        Ref: GreengrassLoggerDefinition
+      Loggers:
+        - Component: Lambda
+          Id: UserLambdaLogger
+          Level: INFO
+          Space: 
+          Type: FileSystem
+
+  GreengrassSubscriptionDefinition:
+    Type: AWS::Greengrass::SubscriptionDefinition
+    Properties:
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroupSubscription
+
+  GreengrassSubscriptionDefinitionVersion:
+    Type: AWS::Greengrass::SubscriptionDefinitionVersion
+    Properties:
+      SubscriptionDefinitionId:
+        Ref: GreengrassSubscriptionDefinition
+      Subscriptions:
+        - Id: triggerIngestLambda
+          Source: cloud
+          Subject: pollution/data/ingest/trigger
+          Target:
+            Ref: DataIngestorLambdaVersionAlias
+        - Id: ingestData
+          Source:
+            Ref: DataIngestorLambdaVersionAlias
+          Subject: pollution/data
+          Target: cloud
+        - Id: triggerInferenceLambda
+          Source: cloud
+          Subject: pollution/data/infer/trigger
+          Target:
+            Ref: InferenceLambdaVersionAlias
+        - Id: inferData
+          Source:
+            Ref: InferenceLambdaVersionAlias
+          Subject: pollution/data/infer
+          Target: cloud
+        - Id: ingestTestData
+          Source:
+            Ref: InferenceLambdaVersionAlias
+          Subject: pollution/data
+          Target: cloud   
+
+  GreengrassGroup:
+    Type: AWS::Greengrass::Group
+    Properties:
+      InitialVersion:
+        CoreDefinitionVersionArn:
+          Ref: GreengrassGroupCoreVersion
+        FunctionDefinitionVersionArn:
+          Ref: GreengrassFunctionDefinitionVersion
+        LoggerDefinitionVersionArn:
+          Ref: GreengrassLoggerDefinitionVersion
+        ResourceDefinitionVersionArn:
+          Ref: GreengrassLocalResourceDefinitionVersion
+        SubscriptionDefinitionVersionArn:
+          Ref: GreengrassSubscriptionDefinitionVersion
+      Name:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroup
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      Path: "/"
+      Policies:
+      - PolicyName: s3Access
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - s3:Get*
+              Effect: Allow
+              Resource:
+                Fn::Sub: arn:aws:s3:::${SourceS3Bucket}*
+          
+  InstanceRoleProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/executionEC2Role/"
+      Roles:
+        - Ref: InstanceRole
+  
+  IotCertificateKey:
+    DependsOn: GreengrassGroupCore
+    Type: Custom::IotCertificateKeyCreator
+    Properties:
+      S3Bucket:
+        Ref: SourceS3Bucket
+      S3ObjectPrefix: certs
+      ServiceToken:
+        Fn::GetAtt:
+          - IotCertificateKeyCreatorFunction
+          - Arn
+  
+  GreengrassGroupCorePolicy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyDocument: '{ 
+        "Version": "2012-10-17", 
+        "Statement": [ 
+          { "Effect": "Allow",
+            "Action": [ "iot:Publish", "iot:Subscribe", "iot:Connect", "iot:Receive" ],
+            "Resource": [ "*" ] 
+          }, 
+          { "Effect": "Allow", 
+            "Action": [ "iot:GetThingShadow", "iot:UpdateThingShadow", "iot:DeleteThingShadow" ], 
+            "Resource": [ "*" ] },
+        { "Effect": "Allow", 
+          "Action": [ "greengrass:*" ], "Resource": [ "*" ] 
+        } 
+        ]}'
+      PolicyName:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - "-iot-app-"
+            - GreengrassGroupCorePolicy
+  
+  PolicyPrincipalAttachment:
+    Type: AWS::IoT::PolicyPrincipalAttachment
+    Properties:
+      PolicyName:
+        Ref: GreengrassGroupCorePolicy
+      Principal:
+        Fn::GetAtt:
+          - IotCertificateKey
+          - Arn
+  
+  IotCertificateKeyCreatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: SourceS3Bucket
+        S3Key: lambdaCode/IotCertificateKeyCreatorFunction.zip
+      Handler: IotCertificateKeyCreatorFunction.lambda_handler
+      Description: Create certificates and uploads them to s3
+      Environment:
+        Variables:
+          THING_ARN: 
+            Fn::Join:
+              - ''
+              - - "arn:aws:iot:"
+                - Ref: "AWS::Region"
+                - ":"
+                - Ref: "AWS::AccountId"
+                - ":"
+                - "thing/"
+                - "iot-app-"
+                - "GreengrassGroupCore"
+      Role:
+        Fn::GetAtt:
+          - IotCertificateKeyCreatorFunctionRole
+          - Arn
+      Runtime: python3.6
+      Timeout: 300
+
+  IotCertificateKeyCreatorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com 
+      Path: "/"
+      Policies:
+      - PolicyName: createIotCertificateKeys
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - iot:DeleteCertificate
+                - iot:CreateKeysAndCertificate
+                - iot:UpdateCertificate
+                - iot:DescribeEndpoint
+              Effect: Allow
+              Resource: "*"
+      - PolicyName: uploadIotCertificateKeys
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - s3:Get*
+                - s3:Put*
+                - s3:DeleteObj*
+                - s3:List*
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${SourceS3Bucket}*
+                - Fn::Sub: arn:aws:s3:::${SourceS3Bucket}/* 
+      - PolicyName: cloudwatchLogging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Effect: Allow
+              Resource: arn:aws:logs:*:*:*
+    
+  LaunchConfiguration:
+    DependsOn: IotCertificateKey
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: 
+            VolumeType: gp2
+      IamInstanceProfile:
+        Ref: InstanceRoleProfile
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - Ref: AWS::Region
+          - imageId
+      InstanceType:
+        Ref: InstanceType
+      SecurityGroups:
+        - Fn::Import:
+            Fn::Sub: ${ResourceNamespace}-nw-vpc-SecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash -xue
+
+            ###Upgrade AWS CLI###
+            echo 'upgrading aws cli'
+            yum upgrade -y aws-cli
+
+            ###Install pip###
+            curl -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+            python /tmp/get-pip.py
+
+            ###Install python libraries###
+            pip install pandas
+            pip install joblib
+            pip install keras
+            pip install scikit-learn
+            pip install --ignore-installed tensorflow
+
+            ###Install greengrass sdk###
+            pip install greengrasssdk
+
+            ###Commands taken from https://docs.aws.amazon.com/greengrass/latest/developerguide/setup-filter.ec2.html###
+            ###Adding GG user and group###
+            echo 'Adding Greengrass user and group'
+            sudo adduser --system ggc_user
+            sudo groupadd --system ggc_group
+
+            ###Mounting Linux Control groups
+            echo 'Mounting Linux control groups'
+            curl https://raw.githubusercontent.com/tianon/cgroupfs-mount/951c38ee8d802330454bdede20d85ec1c0f8d312/cgroupfs-mount > cgroupfs-mount.sh
+            chmod +x cgroupfs-mount.sh
+            sudo bash ./cgroupfs-mount.sh
+
+            ###Download Greengrass###
+            echo 'download and installing greengrass'
+            wget https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/1.10.0/greengrass-linux-x86-64-1.10.0.tar.gz
+            sudo tar -xzvf greengrass-linux-x86-64-1.10.0.tar.gz -C /
+
+            ###Downloading Certificates for Greengrass###
+            echo 'Downloading certs for greengrass'
+            aws s3 cp s3://${SourceS3Bucket}/certs/certs.zip /tmp/cert.zip
+            unzip /tmp/cert.zip -d /tmp/
+            sudo mv /tmp/tmp/config.json /greengrass/config/
+            sudo mv /tmp/tmp/* /greengrass/certs/
+
+            ###Adding Amazon Root Cert
+            echo 'Adding root CA'
+            cd /greengrass/certs/
+            sudo wget -O root.ca.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
+
+            ###Start Greengrass Service###
+            cd /greengrass/ggc/core/
+            sudo ./greengrassd start
+
+            ###Create a src and dest directory for lambda###
+            mkdir /src
+            chmod 0775 /src
+            mkdir /dest
+            chmod 0775 /dest
+            sudo wget -O /src/pollution.csv https://${SourceS3Bucket}.s3.amazonaws.com/data/pollution.csv
+
+  GreengrassGroupCoreThing:
+    Type: AWS::IoT::Thing
+    Properties:
+      ThingName:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - GreengrassGroupCore
+
+  IoTEventsDetectorModel:
+    Type: AWS::IoTEvents::DetectorModel
+    Properties:
+      DetectorModelDefinition:
+        InitialStateName: ModelAccurate
+        States:
+          - OnEnter:
+              Events:
+                - EventName: InitializeVariable
+                  Actions:
+                    - SetVariable:
+                      Value: 0
+                      VariableName: Count
+                    - SetVariable:
+                      Value: 0
+                      VariableName: IncorrectPredictions
+                  
+          -  OnInput:
+              Events:
+                - EventName: IncrementCount
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.Count + 1"
+                      VariableName: Count
+                - EventName: IncorrectPrediction
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.IncorrectPredictions + 1"
+                      VariableName: IncorrectPredictions
+                  Condition:
+                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution)> 0.1) || (((1.0*$input.${IoTEventsInput}.predicted_pollution -$input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution)< -0.1)"
+              
+                - EventName: CorrectPrediction
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.IncorrectPredictions - 1"
+                      VariableName: IncorrectPredictions
+                  Condition:
+                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) <= 0.1) && (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution)>= -0.1)"
+              
+              TransitionEvents:
+                - EventName: TransitionToInaccurateModel
+                  Condition: "(1.0*$variable.IncorrectPredictions)/$variable.Count > 0.10 && $variable.Count > 5"
+                  NextState: ModelInAccurate
+              StateName: ModelAccurate
+          - OnEnter:
+              Events:
+                - EventName: SendMqttMessage
+                  Actions:
+                    - IotTopicPublish:
+                        MqttTopic: pollution/data/model/accuracy
+            OnInput:
+              Events:
+                - EventName: IncrementCount
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.Count + 1"
+                      VariableName: Count
+                - EventName: IncorrectPrediction
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.IncorrectPredictions + 1"
+                      VariableName: IncorrectPredictions
+                  Condition:
+                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) > 0.1) || (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) < -0.1)"
+                - EventName: CorrectPrediction
+                  Actions:
+                    - SetVariable:
+                      Value: "$variable.IncorrectPredictions - 1"
+                      VariableName: IncorrectPredictions
+                  Condition:
+                    Fn::Sub: "(((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) <= 0.1) && (((1.0*$input.${IoTEventsInput}.predicted_pollution - $input.${IoTEventsInput}.actual_pollution)/$input.${IoTEventsInput}.actual_pollution) >= -0.1)"
+              
+              TransitionEvents:
+                - Condition: "(1.0*$variable.IncorrectPredictions)/$variable.Count < 0.10 && $variable.Count > 5"
+                  EventName: TransitionToAccurateModel
+                  NextState: ModelAccurate
+            StateName: ModelInAccurate
+      RoleArn:
+        Fn::GetAtt:
+          - IotEventDetectorModelRole
+          - Arn
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IoTEventsInput:
+    Type: AWS::IoTEvents::Input
+    Properties:
+      InputDefinition:
+        Attributes:
+          - JsonPath: predicted_pollution
+          - JsonPath: actual_pollution
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IotAnalyticsChannel:
+    Type: AWS::IoTAnalytics::Channel
+    Properties:
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IotAnalyticsDatastore:
+    Type: AWS::IoTAnalytics::Datastore
+    Properties:
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IotAnalyticsPipeline:
+    Type: AWS::IoTAnalytics::Pipeline
+    Properties:
+      PipelineActivities:
+      - Channel:
+          ChannelName:
+            Ref: IotAnalyticsChannel
+          Name: ChannelActivity
+          Next: DatastoreActivity
+        Datastore:
+          DatastoreName:
+            Ref: IotAnalyticsDatastore
+          Name: DatastoreActivity
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IotAnalyticsSqlDataset:
+    Type: AWS::IoTAnalytics::Dataset
+    Properties:
+      Actions:
+        - ActionName: SqlAction
+          QueryAction:
+            SqlQuery:
+              Fn::Join:
+                - ''
+                - - "SELECT * FROM "
+                  - Ref: "IotAnalyticsDatastore"
+      Tags:
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+
+  IotEventsTopicRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - iot.amazonaws.com
+        Version: '2012-10-17'
+      Path: "/"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - iotevents:BatchPutMessage
+                Effect: Allow
+                Resource:
+                  Fn::Join:
+                    - ''
+                    - - "arn:aws:iotevents:"
+                      - Ref: "AWS::Region"
+                    - ":"
+                    - Ref: "AWS::AccountId"
+                    - ":"
+                    - "input/"
+                    - Ref: "IoTEventsInput"
+            Version: '2012-10-17'
+            PolicyName: IotEventsTopicRuleRoleInlinePolicy
+
+  IotEventsTopicRule:
+    Type: Custom::TopicRuleIotEvents
+    Properties:
+      InputName:
+        Ref: IoTEventsInput
+      RoleArn:
+        Fn::GetAtt:
+          - IotEventsTopicRuleRole
+          - Arn
+      RuleName:
+        Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - IotEventsTopicRule
+      ServiceToken:
+        Fn::GetAtt:
+          - TopicRuleIotEventsFunction
+          - Arn
+      TopicDescription: Sending inference to iot events for model monitoring
+      TopicSql: SELECT * FROM 'pollution/data/infer'
+
+  IotRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - iot.amazonaws.com
+        Version: '2012-10-17'
+      Path: "/"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - iotanalytics:BatchPutMessage
+                Effect: Allow
+                Resource:
+                  Fn::Join:
+                    - ''
+                    - - "arn:aws:iotanalytics:"
+                      - Ref: "AWS::Region"
+                      - ":"
+                      - Ref: "AWS::AccountId"
+                      - ":"
+                      - "channel/"
+                      - "Ref": "IotAnalyticsChannel"
+            Version: '2012-10-17'
+            PolicyName: IotRuleRoleInlinePolicy
+    
+  ThingPrincipalAttachment:
+    Type: AWS::IoT::ThingPrincipalAttachment
+    Properties:
+      Principal:
+        Fn::GetAtt:
+          - IotCertificateKey
+          - Arn
+      ThingName:
+        Ref: GreengrassGroupCoreThing
+        
+  TopicRuleIotEventsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: "/"
+      Policies:
+        - PolicyDocument:
+            PolicyName: createIotTopicRule
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - iot:CreateTopicRule
+                  - iot:DeleteTopicRule
+                Effect: Allow
+                Resource: "*"
+              - Action:
+                  - iam:PassRole
+                Effect: Allow
+                Resource:
+                  Fn::GetAtt:
+                    - IotEventsTopicRuleRole
+                    - Arn
+        - PolicyDocument:
+            PolicyName: cloudwatchLogging
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Effect: Allow
+                Resource: arn:aws:logs:*:*:*
+
+  TopicRuleIotEventsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        S3Bucket: 
+          Ref: SourceS3Bucket
+        S3Key: lambdaCode/TopicRuleIotEventsFunction.zip
+      Description: Create Topic Rule for Iot Events
+      Handler: TopicRuleIotEventsFunction.lambda_handler
+      Role:
+        Fn::GetAtt:
+          - TopicRuleIotEventsFunctionRole
+          - Arn
+      Runtime: python3.6
+      Timeout: 300
+
+  IotEventDetectorModelRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - iotevents.amazonaws.com
+      Path: "/"
+      Policies:
+        - PolicyName: iotMqttPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - iot:Publish
+                Effect: Allow
+                Resource:
+                  Fn::Join:
+                    - ''
+                    - - "arn:aws:iot:"
+                      - Ref: "AWS::Region"
+                      - ":"
+                      - Ref: "AWS::AccountId"
+                      - ":"
+                      - "topic/"
+                      - "pollution/data/model/accuracy"
+
+  IotTopicRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      TopicRulePayload:
+        Actions:
+          - IotAnalytics:
+              ChannelName:
+                Ref: IotAnalyticsChannel
+              RoleArn:
+                Fn::GetAtt:
+                  - IotRuleRole
+                  - Arn
+        RuleDisabled: true
+        Sql: SELECT * FROM 'pollution/data'
+
+Outputs:
+  IotAnalyticsSqlDataset:
+    Value:
+      Ref: IotAnalyticsSqlDataset
+    Export:
+      Name:
+        Fn::Sub: "${ResourceNamespace}-iot-dataset"
